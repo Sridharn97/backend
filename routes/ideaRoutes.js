@@ -8,19 +8,21 @@ import {
   voteIdea,
   getUserIdeas
 } from '../controllers/ideaController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, optionalAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Public routes
-router.get('/', getIdeas);
-router.get('/:id', getIdeaById);
+// Protected routes (must come before /:id to avoid route conflicts)
+router.get('/user/ideas', protect, getUserIdeas);
+
+// Public routes (with optional auth to identify admins)
+router.get('/', optionalAuth, getIdeas);
+router.get('/:id', optionalAuth, getIdeaById);
 
 // Protected routes
 router.post('/', protect, createIdea);
 router.put('/:id', protect, updateIdea);
 router.delete('/:id', protect, deleteIdea);
 router.post('/:id/vote', protect, voteIdea);
-router.get('/user/ideas', protect, getUserIdeas);
 
 export default router;

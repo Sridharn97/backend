@@ -13,40 +13,25 @@ export const getIdeas = async (req, res) => {
       query.category = category;
     }
 
-    // Filter by status if provided (default to Approved for public view)
+    // Check if user is admin - admins can see all ideas regardless of status
+    const isAdmin = req.user && req.user.role === 'admin';
+
+    // Filter by status
     if (status) {
+      // If status is explicitly provided in query, use it
       query.status = status;
-    } else {
+    } else if (!isAdmin) {
+      // Default to Approved for non-admin users (public view)
       query.status = 'Approved';
     }
+    // If admin and no status filter, don't set status filter (show all statuses)
 
-    // Visibility filters
-    if (req.user) {
-      // If user is logged in, show:
-      // 1. All public ideas
-      // 2. Their own ideas (including private ones)
-      query.$or = [
-        { visibility: { $in: ['public', 'unlisted'] } },
-        { user: req.user._id }
-      ];
-    } else {
-      // If no user is logged in, only show public ideas
-      query.visibility = 'public';
-    }
-
+    // Fetch ideas with the query
     const ideas = await Idea.find(query)
-      .populate('user', 'username')
+      .populate('user', 'username email')
       .sort({ createdAt: -1 });
 
-    // Filter out private ideas that don't belong to the user
-    const filteredIdeas = ideas.filter(idea => {
-      if (idea.visibility === 'private') {
-        return req.user && idea.user._id.toString() === req.user._id.toString();
-      }
-      return true;
-    });
-
-    res.json(filteredIdeas);
+    res.json(ideas);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -65,13 +50,8 @@ export const getIdeaById = async (req, res) => {
       return res.status(404).json({ message: 'Idea not found' });
     }
 
-    // Check visibility permissions
-    if (idea.visibility === 'private') {
-      // Private ideas can only be viewed by their owner
-      if (!req.user || idea.user._id.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'This idea is private' });
-      }
-    }
+    // Admins can view any idea, no additional checks needed
+    // (Since visibility field doesn't exist in schema, no visibility restrictions)
 
     // Track view if user is logged in and not the owner
     if (req.user && idea.user._id.toString() !== req.user._id.toString()) {
@@ -195,10 +175,8 @@ export const voteIdea = async (req, res) => {
       return res.status(404).json({ message: 'Idea not found' });
     }
 
-    // Check if idea is private and user is not the owner
-    if (idea.visibility === 'private' && idea.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Cannot vote on private ideas' });
-    }
+    // Admins can vote on any idea, no additional checks needed
+    // (Since visibility field doesn't exist in schema, no visibility restrictions)
 
     // Check if user has already voted
     const existingVote = idea.votes.voters.find(
