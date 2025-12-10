@@ -6,12 +6,20 @@ import Comment from '../models/Comment.js';
 // @access  Private/Admin
 export const getAllIdeas = async (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, search } = req.query;
     let query = {};
 
     // Filter by status if provided
     if (status) {
       query.status = status;
+    }
+
+    // Filter by search query if provided
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
     }
 
     const ideas = await Idea.find(query)
